@@ -1,9 +1,31 @@
-/*
- * Find in note replacement for ctrl+f search (c) Antonio Tejada 2022
+/**
+ * Find in note replacement for Trilium ctrl+f search
+ * (c) Antonio Tejada 2022
  *
- * Note that many times some common code is replicated between CodeMirror and CKEditor
- * codepaths because the CKEditor update is done inside a callback that is deferred
- * so the code cannot be put outside of the callback or it will execute too early.
+ * Features:
+ * - Find in writeable using ctrl+f and F3
+ * - Tested on Trilium Desktop 0.50.3
+ *
+ * Installation:
+ * - Create a code note of language JS Frontend with the contents of this file
+ * - Set the owned attributes (alt-a) to #widget
+ * - Set the owned attributes of any note you don't want to enable finding to
+ *   #noFindWidget
+ * - Disable Ctrl+f shorcut in Trilium options
+ * - Debugging output can be enabled setting the label #debug on the script
+ *   code note.
+ *
+ * Todo:
+ * - Refactoring/code cleanup
+ * - Case-sensitive option
+ * - Regexp option
+ * - Full word option
+ * - Find & Replace
+ *
+ * Note that many times some common code is replicated between CodeMirror and
+ * CKEditor codepaths because the CKEditor update is done inside a callback that
+ * is deferred so the code cannot be put outside of the callback or it will
+ * execute too early.
  *
  * See https://github.com/zadam/trilium/discussions/2806 for discussions
  */
@@ -260,7 +282,7 @@ class FindWidget extends api.NoteContextAwareWidget {
             } 
             // e.preventDefault();
         });
-                                   
+                                
         findWidget.$input.on('input', function (e) {
             let needle = findWidget.$input.val();
             
@@ -327,7 +349,7 @@ class FindWidget extends api.NoteContextAwareWidget {
                                     let cursorPos = codeEditor.getCursor();
                                     if ((fromPos.line > cursorPos.line) ||
                                         ((fromPos.line == cursorPos.line) &&
-                                         (fromPos.ch >= cursorPos.ch))){
+                                        (fromPos.ch >= cursorPos.ch))){
                                         curFound = numFound;
                                     }  
                                 }
@@ -448,7 +470,7 @@ class FindWidget extends api.NoteContextAwareWidget {
                 // Restore the highlightSelectionMatches setting
                 codeEditor.setOption("highlightSelectionMatches", findWidget.oldHighlightSelectionMatches);
                 findWidget.findResult = null;
-           } else {
+        } else {
                 assert(note.type == "text", "Expected text note, found " + note.type);
                 if (numFound > 0) {
                     getActiveTabTextEditor(textEditor => {
@@ -469,10 +491,10 @@ class FindWidget extends api.NoteContextAwareWidget {
                         textEditor.editing.view.scrollToTheSelection();
                         findWidget.findResult = null;
                     });
-               } else {
-                   findWidget.findResult = null;
-               }
-           }
+            } else {
+                findWidget.findResult = null;
+            }
+        }
         });
     }
     
@@ -536,7 +558,6 @@ $(window).keydown(function (e){
                 findWidget.$numFound.text(0);
                 findWidget.$curFound.text(0);
                 
-                // XXX Missing starting the search from the current cursor position
                 // Initialize the input field to the text selection, if any
                 if (note.type == "code") {
                     let codeEditor = getActiveTabCodeEditor();

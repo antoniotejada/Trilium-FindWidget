@@ -9,9 +9,15 @@ Find in note [Trilium](https://github.com/zadam/trilium/) widget to replace the 
   - F3/enter shift+f3/shift+enter to go to the next/prev occurrence
   - esc or click on note to end the search and go back to the note
 - Doesn't work on readonly notes, no firm plans to make it work there.
-- Enable debugging setting the label #debug on the script code note.
-- Disable the script on a note by setting the label #noFindWidget.
+- Tested on Trilium Desktop 0.50.3
 
+## Installation
+- Create a code note of type JS Frontend with the contents of FindWidget.js
+- Set the owned attributes (alt-a) to #widget
+- Set the owned attributes of any note you don't want to enable finding to #noFindWidget
+- Disable Ctrl+f shorcut in Trilium options
+- Debugging output can be enabled setting the label #debug on the script code
+  note.
 
 ## Todo
 - Refactoring, code cleanup
