@@ -1,5 +1,5 @@
 /*
- * Find in note replacement for ctrl+f search 
+ * Find in note replacement for ctrl+f search (c) Antonio Tejada 2022
  */
 const TPL = `<div style="contain: none;">
 <div id="findBox" style="padding: 10px; border-top: 1px solid var(--main-border-color); ">
@@ -10,7 +10,7 @@ const TPL = `<div style="contain: none;">
 </div>
 </div`;
 
-const showDebug = false;
+const showDebug = true;
 function dbg(s) {
     if (showDebug) {
         console.debug("FindWidget: " + s);
@@ -210,7 +210,6 @@ class FindWidget extends api.NoteContextAwareWidget {
         findWidget.$input.on('input', function (e) {
             let prevFocus = findWidget.prevFocus;
             dbg("input " + e.key + " on " + prevFocus.nodeName);
-            // Skip the style tags text by going to the -editor class
             let needle = findWidget.$input.val();
             
             const note = api.getActiveTabNote();
@@ -218,74 +217,83 @@ class FindWidget extends api.NoteContextAwareWidget {
                 let findResult = null;
                 let numFound = 0;
             
+                // See https://codemirror.net/addon/search/searchcursor.js for tips
                 let component = glob.appContext.getComponentByEl("div.note-detail-code-editor");
                 let codeEditor = component.codeEditor;
                 let doc = codeEditor.doc;
-                
-                // See https://codemirror.net/addon/search/searchcursor.js
                 let text = doc.getValue();
                 
                 // Clear all markers
                 if (findWidget.findResult != null) {
-                    for (let i = 0; i < findWidget.findResult.length; ++i) {
-                        let marker = findWidget.findResult[i];
-                        marker.clear();
-                    }
+                    codeEditor.operation(function() {
+                        for (let i = 0; i < findWidget.findResult.length; ++i) {
+                            let marker = findWidget.findResult[i];
+                            marker.clear();
+                        }
+                    });
                 }
 
                 if (needle != "") {
                     needle = escapeRegExp(needle);
-                    dbg("text is " + text + " needle is " + needle);
-                    let m = [];
-                    /* if (needle.length > 0) {
-                        let re = new RegExp(needle, 'gi');
-                        m = text.match(re);
-                        numFound = m ? m.length : 0;
-                    }*/
+                    
                     // Find and highlight matches
                     let re = new RegExp(needle, 'gi');
+                    let viewport = codeEditor.getViewport();
+                    dbg("Viewport is " + viewport.from + "," + viewport.to);
                     let curLine = 0;
                     let curChar = 0;
                     let curMatch = null;
                     findResult = [];
+                    // ck-find-result and ck-find-result_selected are the styles ck-editor 
+                    // uses for highlighting matches, use the same one on CodeMirror 
+                    // for consistency
                     let className = "ck-find-result_selected";
-                    for (let i = 0; (re != null) && (i < text.length); ++i) {
-                        if ((curMatch == null) || (curMatch.index < i)) {
-                            curMatch = re.exec(text);
-                            if (curMatch == null) {
-                                // No more matches
-                                break;
+                    // All those markText take several seconds on eg this ~500-line script,
+                    // batch them inside an operation so they become unnoticeable
+                    codeEditor.operation(function() {
+                        for (let i = 0; i < text.length; ++i) {
+                            // Fetch next match if it's the first time or 
+                            // if past the current match start
+                            if ((curMatch == null) || (curMatch.index < i)) {
+                                curMatch = re.exec(text);
+                                if (curMatch == null) {
+                                    // No more matches
+                                    break;
+                                }
                             }
-                            numFound++;
-                        }
-                        if (i == curMatch.index) {
-                            let fromPos = { "line" : curLine, "ch" : curChar };
-                            // XXX Needs multiline support
-                            let toPos = { "line" : curLine, "ch" : curChar + curMatch[0].length};
-                            // XXX or css = "color: #f3"
-                            let marker = doc.markText( fromPos, toPos, { "className" : className });
-                            className = "ck-find-result";
-                            findResult.push( marker );
-                            if (numFound == 1) {
-                                codeEditor.scrollIntoView(fromPos);
+                            // Create a highlight marker for the match, scroll to the first match
+                            if (i == curMatch.index) {
+                                let fromPos = { "line" : curLine, "ch" : curChar };
+                                // XXX If multiline is supported, this needs to recalculate curLine
+                                //     since the match may span lines
+                                let toPos = { "line" : curLine, "ch" : curChar + curMatch[0].length};
+                                // XXX or css = "color: #f3"
+                                // XXX When the word being marked is already highlighted by 
+                                //     of CodeMirror automatic word highlighting, the marker is not visible
+                                //     remove that one and restore it later?
+                                let marker = doc.markText( fromPos, toPos, { "className" : className });
+                                className = "ck-find-result";
+                                findResult.push(marker);
+                                // Scroll the first match into view
+                                if (numFound == 0) {
+                                    codeEditor.scrollIntoView(fromPos);
+                                }
+                                numFound++;
+                            }
+                            // Do line and char position tracking
+                            if (text[i] == "\n") {
+                                curLine++;
+                                curChar = 0;
+                            } else {
+                                curChar++;
                             }
                         }
-                        if (text[i] == "\n") {
-                            curLine++;
-                            curChar = 0;
-                        } else {
-                            curChar++;
-                        }
-                    }
+                    });
                 }
                 findWidget.findResult = findResult;
                 findWidget.$numFound.text(numFound);
+                findWidget.$curFound.text((numFound == 0) ? 0 : 1);
                 
-                if (numFound > 0) {
-                    findWidget.$curFound.text(1);
-                } else {
-                    findWidget.$curFound.text(0);
-                }
             } else { 
                 // XXX Assumes "text"
 
@@ -314,13 +322,7 @@ class FindWidget extends api.NoteContextAwareWidget {
 
                     findWidget.findResult = findResult;
                     findWidget.$numFound.text(numFound);
-                    
-                    if (numFound > 0) {
-                        findWidget.$curFound.text(1);
-                    } else {
-                        findWidget.$curFound.text(0);
-                    }
-                    
+                    findWidget.$curFound.text((numFound == 0) ? 0 : 1);
                 });
             }
         });
@@ -345,10 +347,12 @@ class FindWidget extends api.NoteContextAwareWidget {
                     let pos = findWidget.findResult[curFound].find();
                     doc.setCursor(pos.from);
                     // Clear all markers
-                    for (let i = 0; i < findWidget.findResult.length; ++i) {
-                        let marker = findWidget.findResult[i];
-                        marker.clear();
-                    }
+                    codeEditor.operation(function() {
+                        for (let i = 0; i < findWidget.findResult.length; ++i) {
+                            let marker = findWidget.findResult[i];
+                            marker.clear();
+                        }
+                    });
                     findWidget.findResult = null;
                 } else {
                     // XXX Assumes text
@@ -437,7 +441,7 @@ $(window).keydown(function (e){
                 // XXX Start the search from the current cursor position
                 findWidget.$input.val("");
                 
-                if (node.type == "code") {
+                if (note.type == "code") {
                     // XXX Missing
                 } else {
                     api.getActiveTabTextEditor(textEditor => {
