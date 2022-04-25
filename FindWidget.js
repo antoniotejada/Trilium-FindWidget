@@ -10,7 +10,7 @@ const TPL = `<div style="contain: none;">
 </div>
 </div`;
 
-const showDebug = true;
+const showDebug = false;
 function dbg(s) {
     if (showDebug) {
         console.debug("FindWidget: " + s);
@@ -35,6 +35,29 @@ function debugbreak() {
 
 function escapeRegExp(string) {
     return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function getActiveTabCodeEditor() {
+    // There can be multiple codeEditors on inactive tabs,
+    // pick the one for the note in the active tab
+    const note = api.getActiveTabNote();
+    // Can't use 
+    //    glob.appContext.getComponentByEl(".note-detail-code-editor");
+    // because it doesn't return an array, just a single component
+    // Roll manually the jquery instead
+    // XXX Can a nested attribute selector be constructed for 
+    //     component.noteId == note.noteId?
+    let elements = $(".note-detail-code-editor").closest(".component");
+    
+    let codeEditor = null;
+    for (let element of elements) {
+        let component = element.component;
+        if (component.noteContext.noteId == note.noteId) {
+            codeEditor = component.codeEditor;
+            break;
+        }
+    }
+    return codeEditor;
 }
 
 class FindWidget extends api.NoteContextAwareWidget {
@@ -144,14 +167,13 @@ class FindWidget extends api.NoteContextAwareWidget {
                     
                     const note = api.getActiveTabNote();
                     if (note.type == "code") {
-                        let component = glob.appContext.getComponentByEl("div.note-detail-code-editor");
-                        let codeEditor = component.codeEditor;
+                        let codeEditor = getActiveTabCodeEditor();
                         let doc = codeEditor.doc;
                         
                         let marker;
                         let pos;
                         
-                        // Dehighlight current, highlight next
+                        // Dehighlight current, highlight & scrollIntoView next
                         marker = findWidget.findResult[curFound];
                         pos = marker.find();
                         marker.clear();
@@ -193,8 +215,7 @@ class FindWidget extends api.NoteContextAwareWidget {
 
                 const note = api.getActiveTabNote();
                 if (note.type == "code") {
-                    let component = glob.appContext.getComponentByEl("div.note-detail-code-editor");
-                    let codeEditor = component.codeEditor;
+                    let codeEditor = getActiveTabCodeEditor();
 
                     codeEditor.focus();
                 } else {
@@ -218,8 +239,7 @@ class FindWidget extends api.NoteContextAwareWidget {
                 let numFound = 0;
             
                 // See https://codemirror.net/addon/search/searchcursor.js for tips
-                let component = glob.appContext.getComponentByEl("div.note-detail-code-editor");
-                let codeEditor = component.codeEditor;
+                let codeEditor = getActiveTabCodeEditor();
                 let doc = codeEditor.doc;
                 let text = doc.getValue();
                 
@@ -238,8 +258,6 @@ class FindWidget extends api.NoteContextAwareWidget {
                     
                     // Find and highlight matches
                     let re = new RegExp(needle, 'gi');
-                    let viewport = codeEditor.getViewport();
-                    dbg("Viewport is " + viewport.from + "," + viewport.to);
                     let curLine = 0;
                     let curChar = 0;
                     let curMatch = null;
@@ -341,8 +359,7 @@ class FindWidget extends api.NoteContextAwareWidget {
                 let curFound = parseInt(findWidget.$curFound.text()) - 1;
                 const note = api.getActiveTabNote();
                 if (note.type == "code") {
-                    let component = glob.appContext.getComponentByEl("div.note-detail-code-editor");
-                    let codeEditor = component.codeEditor;
+                    let codeEditor = getActiveTabCodeEditor();
                     let doc = codeEditor.doc;
                     let pos = findWidget.findResult[curFound].find();
                     doc.setCursor(pos.from);
