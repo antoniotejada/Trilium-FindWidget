@@ -171,7 +171,7 @@ class FindWidget extends api.NoteContextAwareWidget {
         
         findWidget.$input.keydown(function (e) {
             dbg("keydown on input " + e.key);
-            if ((e.metaKey || e.controlKey) && ((e.key == 'F') || (e.key == 'f'))) {
+            if ((e.metaKey || e.ctrlKey) && ((e.key == 'F') || (e.key == 'f'))) {
                 // If ctrl+f is pressed when the findbox is shown,
                 // select the whole input to find
                 findWidget.$input.select();
@@ -244,8 +244,6 @@ class FindWidget extends api.NoteContextAwareWidget {
                 e.preventDefault();
                 return false;
             } else if (e.key == 'Escape') {
-                dbg("focusing back to " + findWidget.prevFocus);
-                //$(findWidget.prevFocus).focus();
                 let numFound = parseInt(findWidget.$numFound.text());
 
                 const note = api.getActiveTabNote();
@@ -264,15 +262,14 @@ class FindWidget extends api.NoteContextAwareWidget {
         });
                                    
         findWidget.$input.on('input', function (e) {
-            let prevFocus = findWidget.prevFocus;
-            dbg("input " + e.key + " on " + prevFocus.nodeName);
             let needle = findWidget.$input.val();
             
             const note = api.getActiveTabNote();
             if (note.type == "code") {
                 let findResult = null;
                 let numFound = 0;
-            
+                let curFound = -1;
+                
                 // See https://codemirror.net/addon/search/searchcursor.js for tips
                 let codeEditor = getActiveTabCodeEditor();
                 let doc = codeEditor.doc;
@@ -297,7 +294,6 @@ class FindWidget extends api.NoteContextAwareWidget {
                     let curChar = 0;
                     let curMatch = null;
                     findResult = [];
-                    let className = FIND_RESULT_SELECTED_CSS_CLASSNAME;
                     // All those markText take several seconds on eg this ~500-line script,
                     // batch them inside an operation so they become unnoticeable
                     // Alternatively, an overlay could be used, see 
@@ -313,20 +309,29 @@ class FindWidget extends api.NoteContextAwareWidget {
                                     break;
                                 }
                             }
-                            // Create a highlight marker for the match, scroll to the first match
+                            // Create a non-selected highlight marker for
+                            // the match, the selected marker highlight 
+                            // will be done later
                             if (i == curMatch.index) {
                                 let fromPos = { "line" : curLine, "ch" : curChar };
                                 // XXX If multiline is supported, this needs to recalculate curLine
                                 //     since the match may span lines
                                 let toPos = { "line" : curLine, "ch" : curChar + curMatch[0].length};
                                 // XXX or css = "color: #f3"
-                                let marker = doc.markText( fromPos, toPos, { "className" : className });
-                                className = FIND_RESULT_CSS_CLASSNAME;
+                                let marker = doc.markText( fromPos, toPos, { "className" : FIND_RESULT_CSS_CLASSNAME });
                                 findResult.push(marker);
-                                // Scroll the first match into view
-                                if (numFound == 0) {
-                                    codeEditor.scrollIntoView(fromPos);
+                                
+                                // Set the first match beyond the cursor as
+                                // current match
+                                if (curFound == -1) {
+                                    let cursorPos = codeEditor.getCursor();
+                                    if ((fromPos.line > cursorPos.line) ||
+                                        ((fromPos.line == cursorPos.line) &&
+                                         (fromPos.ch >= cursorPos.ch))){
+                                        curFound = numFound;
+                                    }  
                                 }
+                                
                                 numFound++;
                             }
                             // Do line and char position tracking
@@ -339,9 +344,22 @@ class FindWidget extends api.NoteContextAwareWidget {
                         }
                     });
                 }
+                
                 findWidget.findResult = findResult;
                 findWidget.$numFound.text(numFound);
-                findWidget.$curFound.text((numFound == 0) ? 0 : 1);
+                // Calculate curfound if not already, highlight it as
+                // selected
+                if (numFound > 0) {
+                    curFound = Math.max(0, curFound)
+                    let marker = findResult[curFound];
+                    let pos = marker.find();
+                    codeEditor.scrollIntoView(pos.to);
+                    marker.clear();
+                    findResult[curFound] = doc.markText( pos.from, pos.to, 
+                        { "className" : FIND_RESULT_SELECTED_CSS_CLASSNAME }
+                    );
+                }
+                findWidget.$curFound.text(curFound + 1);
                 
             } else { 
                 assert(note.type == "text", "Expected text note, found " + note.type);
@@ -352,6 +370,7 @@ class FindWidget extends api.NoteContextAwareWidget {
                     const model = textEditor.model;
                     let findResult = null;
                     let numFound = 0;
+                    let curFound = -1;
                     
                     // Clear
                     let findAndReplaceEditing = textEditor.plugins.get( 'FindAndReplaceEditing' );
@@ -367,21 +386,41 @@ class FindWidget extends api.NoteContextAwareWidget {
                         // numFound = m ? m.length : 0;
                         findResult = textEditor.execute('find', needle);
                         numFound = findResult.results.length;
+                        // Find the result beyond the cursor
+                        let cursorPos = model.document.selection.getLastPosition();
+                        for (let i = 0; i < findResult.results.length; ++i) {
+                            let marker = findResult.results.get(i).marker;
+                            let fromPos = marker.getStart(); 
+                            if (fromPos.compareWith(cursorPos) != "before") {
+                                curFound = i;
+                                break;
+                            }
+                        }
                     }
 
                     findWidget.findResult = findResult;
                     findWidget.$numFound.text(numFound);
-                    findWidget.$curFound.text((numFound == 0) ? 0 : 1);
+                    // Calculate curfound if not already, highlight it as
+                    // selected
+                    if (numFound > 0) {
+                        curFound = Math.max(0, curFound);
+                        // XXX Do this accessing the private data?
+                        // See 
+                        // https://github.com/ckeditor/ckeditor5/blob/b95e2faf817262ac0e1e21993d9c0bde3f1be594/packages/ckeditor5-find-and-replace/src/findnextcommand.js
+                        for (let i = 0 ; i < curFound; ++i) {
+                            textEditor.execute('findNext', needle);
+                        }
+                    }
+                    findWidget.$curFound.text(curFound + 1);
                 });
             }
         });
             
         findWidget.$input.blur(function () {
             findWidget.$findBox.hide();
-            findWidget.prevFocus = null; 
             
             // Restore any state, if there's a current occurrence clear markers
-            // and scroll to the last occurrence
+            // and scroll to and select the last occurrence
             
             // XXX Switching to a different tab with crl+tab doesn't invoke
             //     blur and leaves a stale search which then breaks when 
@@ -394,7 +433,10 @@ class FindWidget extends api.NoteContextAwareWidget {
                 if (numFound > 0) {
                     let doc = codeEditor.doc;
                     let pos = findWidget.findResult[curFound].find();
-                    doc.setCursor(pos.from);
+                    // Note setting the selection sets the cursor to
+                    // the end of the selection and scrolls it into
+                    // view
+                    doc.setSelection(pos.from, pos.to);
                     // Clear all markers
                     codeEditor.operation(function() {
                         for (let i = 0; i < findWidget.findResult.length; ++i) {
@@ -416,6 +458,8 @@ class FindWidget extends api.NoteContextAwareWidget {
                         let range = findWidget.findResult.results.get(curFound).marker.getRange();
                         // From 
                         // https://github.com/ckeditor/ckeditor5/blob/b95e2faf817262ac0e1e21993d9c0bde3f1be594/packages/ckeditor5-find-and-replace/src/findandreplace.js#L92
+                        // XXX Roll our own since already done for codeEditor and
+                        //     will probably allow more refactoring?
                         let findAndReplaceEditing = textEditor.plugins.get( 'FindAndReplaceEditing' );
                         findAndReplaceEditing.state.clear(model);
                         findAndReplaceEditing.stop();
@@ -447,7 +491,7 @@ class FindWidget extends api.NoteContextAwareWidget {
         dbg("isEnabled");
         return super.isEnabled()
             && ((this.note.type === 'text') || (this.note.type === 'code'))
-            && this.note.hasLabel('findWidget');
+            && !this.note.hasLabel('noFindWidget');
     }
 
     doRender() {
@@ -472,7 +516,7 @@ info("Creating FindWidget");
 let findWidget = new FindWidget();
 module.exports = findWidget;
 
-// XXX Use api.bindShortcut
+// XXX Use api.bindGlobalShortcut?
 $(window).keydown(function (e){
     dbg("keydown on window " + e.key);
     if ((e.key == 'F3') || 
@@ -485,15 +529,12 @@ $(window).keydown(function (e){
         // Only writeable text and code supported
         const readOnly = note.getAttribute("label", "readOnly");
         if (!readOnly && ((note.type == "code") || (note.type == "text"))) {
-            if (findWidget.prevFocus == null) {
+            if (findWidget.$findBox.is(":hidden")) {
             
-                dbg("Focusing in from " + window.document.activeElement);
-                findWidget.prevFocus = document.activeElement;
                 findWidget.$findBox.show();
                 findWidget.$input.focus();
                 findWidget.$numFound.text(0);
                 findWidget.$curFound.text(0);
-
                 
                 // XXX Missing starting the search from the current cursor position
                 // Initialize the input field to the text selection, if any
