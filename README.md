@@ -10,6 +10,7 @@ Find in note [Trilium](https://github.com/zadam/trilium/) widget to replace the 
   - F3/enter shift+f3/shift+enter to go to the next/prev occurrence
   - esc or click on note to end the search and go back to the note
 - Doesn't work on readonly notes, no firm plans to make it work there.
+- Enable debugging setting the label #debug on the script code note.
 
 ## Todo
 - Refactoring, code cleanup
