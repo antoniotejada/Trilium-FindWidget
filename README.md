@@ -2,6 +2,10 @@
 
 Find in note [Trilium](https://github.com/zadam/trilium/) widget to replace the crappy ctrl+f search.
 
+## Video
+
+https://user-images.githubusercontent.com/6446344/164783791-196d2280-5ca8-4058-9257-d5565baffa30.mp4
+
 ## Features
 - Works on code and text notes.
 - Hardcoded keys:
@@ -16,8 +20,23 @@ Find in note [Trilium](https://github.com/zadam/trilium/) widget to replace the 
 - Set the owned attributes (alt-a) to #widget
 - Set the owned attributes of any note you don't want to enable finding to #noFindWidget
 - Disable Ctrl+f shorcut in Trilium options
-- Debugging output can be enabled setting the label #debug on the script code
-  note.
+
+## Configuration Attributes
+### In the Text Note
+- noFindWidget: Set on the text notes you don't want to show the ToC for
+### In the Script Note
+- findWidgetDelayMillis: Number of milliseconds to wait from the time a key is
+  pressed until the search is performed. Prevents stalls typing the first chars
+  search word in long notes. Set to negative to force enter to be pressed in order
+  to search. Default is 250
+- debugLevel: Enable output to the javascript console, default is "info"
+  (without quotes): 
+    - "error" no javascript console output
+    - "warn" enable warn statements to the javascript console
+    - "info" enable info and previous levels statements to the javascript console
+    - "log" enable log and previous levels statements to the javascript console
+    - "debug" enable debug and previous levels statements to the javascript console
+
 
 ## Todo
 - Refactoring, code cleanup
@@ -28,6 +47,3 @@ Find in note [Trilium](https://github.com/zadam/trilium/) widget to replace the 
 
 https://github.com/zadam/trilium/discussions/2806
 
-## Video
-
-https://user-images.githubusercontent.com/6446344/164783791-196d2280-5ca8-4058-9257-d5565baffa30.mp4
